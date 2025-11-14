@@ -54,8 +54,7 @@
     grammar.parse( "3 + A" )    "Expected 'integer' at 5"
 
 POST IMPLEMENTATION CLEANUP
-* Review "kind" in TParseNode.new() - Do we still need it?
-* Review "depth" in TPattern.getMatch() and Matcher() - Do we still need them?
+
 
 
 

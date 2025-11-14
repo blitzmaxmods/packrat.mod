@@ -77,6 +77,11 @@ Type TPattern
 		Return error		
 	EndMethod
 	
+	' Hide a core rule from being displayed in grammar
+	Method hide()
+		hidden = True
+	End Method
+	
 	Method setVerbose:TPattern( state:Int = True )
 		Self.verbose = state
 		Return Self

@@ -1,6 +1,6 @@
 # Packrat Parser for Blitzmax
 
-VERSION: 0.0.0-alpha.2.1.1
+VERSION: 0.0.0-alpha.1.2
 
 __UNSTABLE ALPHA RELEASE__
 __MAY CONTAIN SERIOUS BUGS AND INCOMPLETE FEATURES__
@@ -43,4 +43,18 @@ This implementation has several tools and features that can be used in your appl
 |06-DEC-2023| 0.0.0-pre-alpha.0.6 | Scaremonger | Operators and first Examples added |
 |05-OCT-2025| 0.0.0-alpha.1.0 | Scaremonger | Refactoring begins |
 |14-NOV-2025| 0.0.0-alpha.1.1 | Scaremonger | Packrat Parser with Memoisation cache and Examples |
+|14-NOV-2025| 0.0.0-alpha.1.2 | Scaremonger | Refactored PEG (DEV) Parser and PEG Generator |
+
+# Next Steps
+
+| VERSION          | DETAILS                   | CURRENT STATE |
+| 0.0.0-alpha.1.3  | Error Recovery            | Implemented, requires testing and debugging |
+| 0.0.0-alpha.1.4  | PEG Parser for CSV        | PRE-ALPHA, Waiting on refactoring |
+| 0.0.0-alpha.1.5  | PEG Parser for JSON       | PRE-ALPHA, Waiting on refactoring |
+| 0.0.0-alpha.1.6  | PEG Parser for INI        | PRE-ALPHA, Waiting on refactoring |
+| 0.0.0-alpha.1.7  | PEG Parser for BlitzMax   | PRE-ALPHA, Waiting on refactoring |
+| 0.0.0-alpha.1.8  | Transpiler                | PRE-ALPHA, Waiting on refactoring |
+| 0.0.0-alpha.1.9  | PEG Parser for BlitzBasic | PRE-ALPHA, Waiting on refactoring |
+| 0.0.0-alpha.1.10 | PEG Parser for Blitz3D    | PRE-ALPHA, Waiting on refactoring |
+
 

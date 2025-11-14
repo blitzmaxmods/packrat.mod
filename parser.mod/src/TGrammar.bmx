@@ -88,11 +88,11 @@ Type TGrammar Extends TDictionary
 		index[key] = link
 	End Method
 	
-	Method toPEG:String( showCoreRules:Int = False )
+	Method toPEG:String( showHidden:Int = False )
 		Local peg:String = "# PEG Definition for "+name+"~n#~n# Starting rule: "+start+"~n~n"
 		For Local rulename:String = EachIn Self.keys()
-			Local rule:TPattern =  TPattern( Self[rulename] )
-			If rule.hidden And Not showCoreRules; Continue
+			Local rule:TPattern = TPattern( Self[rulename] )
+			If rule.hidden And Not showHidden; Continue
 			peg :+ rulename + " <- " + rule.toPEG() + "~n"
 		Next
 		Return peg

@@ -1,36 +1,37 @@
 # Project Milestones
-
-| TASK | STATUS | NOTES |
+| TASK | STATUS | RELEASE | NOTES |
 |----|----|----|
-| Move to parser.mod | :construction: | Repo created |
-| Sort out examples | :construction: | Incomplete |
-| Parsing CSV documentation | :beetle: | Incomplete |
-| Parsing JSON documentation | :x: | Incomplete |
-| Packrat Parser | :black_circle: | Done, but not in repo |
-| Packrat PEG Parser | :black_circle: | Done, but not in repo |
-| Parser generator | :black_circle: | Done, but not in repo |
+| Sort out examples          | :white_check_mark: | BETA      | Done |
+| Packrat Parser             | :construction:     | ALPHA     | Not feature complete (Error Recovery) |
+| Packrat PEG Parser         | :white_check_mark: | ALPHA     | Not feature complete |
+| Parser generator           | :white_check_mark: | BETA      | Done |
+| BlitzMax PEG Parser        | :black_circle:     | PRE-ALPHA | Not feature complete |
+| Parsing CSV documentation  | :beetle:           | PRE-ALPHA | Not feature complete |
+| Parsing JSON documentation | :x:                | n/a       | Pending |
 
 # Modules
-| MODULE | STATUS | NOTES |
+| MODULE | STATUS | RELEASE | NOTES |
 |----|----|----|
-| packrat.generator | :x: | Needs to be moved to new repo |
-| packrat.patterns | :white_check_mark: | Complete |
-| packrat.parser | :beetle: | Move to new repo introduced bugs / parsetree tools still included|
-| packrat.parsetree | :beetle: | Move to new repo introduced bugs |
-| packrat.peg | :beetle: | Move to new repo introduced bugs |
-| packrat.visitor | :white_check_mark: | Complete |
+| packrat.patterns  | :white_check_mark: | BETA  | Done |
+| packrat.parser    | :construction:     | ALPHA | Not feature complete (Error recovery) |
+| packrat.generator | :beetle:           | BETA  | Done |
+| packrat.peg       | :construction:     | APLHA | Not feature complete |
 
 # Utilities
-| FILENAME | STATUS | NOTES |
+| FILENAME | STATUS | RELEASE | NOTES |
 |----|----|----|
-| peg.mod/Generate-PEG-Parser.bmx | :beetle: | Move to new repo introduced bugs |
+| packrat.peg/utils/Generate-PEG-Parser.bmx | :beetle: | BETA | Done |
 
-# Examples
-| MODULE | STATUS | NOTES |
-|----|----|----|
-| 1.Matching.bmx | :beetle: | Move to new repo introduced bugs |
+# Known Bugs
+* PEG Labels are not being parsed correctly (^label)
+* PEG Capture is not being parsed ($expression)
+* PEG Case sensitive and Case insensitive strings are not working consistently.
+* Named() operator is missing - Currently only rule name is used
+* Parser error handling is not working correctly; this is an issue with LABEL
+* Review "kind" in TParseNode.new() - Do we still need it?
+* Review "depth" in TPattern.getMatch() and Matcher() - Do we still need them?
 
-# Things to do
+# Things to do & Known bugs
 * Source file headers
 * TPattern.find() - Remove traceback argument
 * TParsenode.bykind() does not work because kind is nearly always zero!!
@@ -38,7 +39,8 @@
 * TParseNode.new() does not save the first argument (pattern)
   - Should it> - if so, where, if not; remove it as an argument!
 * PaseError handling has broken it! ERROR() goes into an infinate loop.
-* Regular expression compatability is currently commented out - WHY?
+* Regular expression compatability is currently commented out
+    - This needs to be moved to an optional library along with ABNF notation
 * compile.bat/sh should extract current foldername for compile
 * Take a look at rule PEG in the dev parser:
     grammar["PEG"] = ZEROORMORE( __("LINE") )
@@ -55,6 +57,5 @@
 	        ])
     - A Trace for the rule also includes a TChoice:
         TChoice[TZeroOrMore[TChoice[TNotPredicate{EOI},TSequence{LINE}]}]]}
-* In parser.mod/src/operators, "self.name=name" is commented out but functions still accept name argument!
-* Move unittesting to MAX.UNIT
+* Move unit testing to MAX.UNIT from custom module
 

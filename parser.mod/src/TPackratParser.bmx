@@ -52,9 +52,9 @@ Type TPackratParser
 '	End Method
 
 	' Get the grammar name tied to this parser
-'	Method name:String()
-'		Return grammar.name
-'	End Method
+	Method name:String()
+		Return grammar.name
+	End Method
 
 	' Parse source using grammar into a Parse Tree
 	Method parse:TParseTree( source:String, startrule:String="" )
@@ -160,13 +160,13 @@ EndIf
 '	Public
 	
 	' Validate the rules
-'	Method validate()
-'		Assert grammar, "Grammar is not defined"
-'		For Local rule:String = EachIn grammar.keys()
-'			Local pattern:TPattern = TPattern( grammar[rule] )
-'			Assert pattern, "Rule '"+rule+"' is declared but not defined in '"+grammar.name+"'"
-'		Next
-'	End Method
+	Method validate()
+		Assert grammar, "Grammar is not defined"
+		For Local rule:String = EachIn grammar.keys()
+			Local pattern:TPattern = TPattern( grammar[rule] )
+			Assert pattern, "Rule '"+rule+"' is declared but not defined in '"+grammar.name+"'"
+		Next
+	End Method
 	
 	' Convert a start position into a line/column
 	
