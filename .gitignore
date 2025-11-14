@@ -1,0 +1,26 @@
+## BLITZMAX GIT IGNORE
+## V1.1
+
+# Ignore everything and then include folders and files with extensions
+# We do this to prevent linux executables (which have not extension) from being merged
+*
+!/**/
+!*.*
+
+# Exclude folders
+.bmx/
+.vscode/
+.bls-cache/
+testing/
+
+# Exclude files
+*.env
+*.bak
+*.debug
+*.old
+*.exe
+*.a
+*.i
+*.i2
+
+

@@ -1,0 +1,62 @@
+
+*. Fix PEG() so it produces decent results -   DONE
+*. Fix LINE and BLOCK comments
+
+* Replace escape() and deescape() in parser.bmx
+    - Move them into TPattern as encode() and decode() so they can be over-ridden if necessary
+    - Standardise on escape symbols instead of /xNNN or /UNNN
+        - What does ABNF use for unicode? %XXXX or &NNN; etc...
+
+* Current way of catching an error
+    LINE -> _* ( EOL / RULE / COMMENT / BADLINE ) 
+    BADLINE -> ( !EOL . )* EOL
+
+    - Implement labels
+    - Return label == null, we backtrack with nothing found
+    - Return label == nonterminal (rule) we execute that rule to clean up
+    - Return label == missing non-terminal, Produce "Unexpected symbols at"
+
+    LINE <- SP EOL / RULE / SOMETHING^recovery
+    recovery <- (!EOL . )* EOL 
+
+    Improve LABELs
+
+    A label is currently processed by the patternm but it should not.
+    A Lbal is nothign more than a non terminal that is used like choice
+
+    myrule^label is the same as ( myrule | label )
+
+    So in TPattern.fail(), you should simply: Return New TNonTerminal( label )
+    if label is set and result.node = null
+
+* Add support For directives in PEG file:
+! KEY = VALUE
+
+    Current directives:
+    !START=Blitzmax
+    !RESERVEDWORDS=	' Used to prevent keywords from being reserved words
+
+* Strings:
+
+    String = '"' value:(!(eol / '"') .)+ '"' { return value; }
+           / '"' value:(!(eol / '"') .)+     { error('unterminated string constant'); return value; }
+
+* "EXPECTED" ERROR MESSAGES
+
+        number -> [0-9]*
+        sum => number "+" number
+
+    grammar.parse( "3 + A" )    "Expected 'number' at 5"
+
+        number "integer" -> [0-9]*
+        sum => number "+" number
+
+    grammar.parse( "3 + A" )    "Expected 'integer' at 5"
+
+POST IMPLEMENTATION CLEANUP
+* Review "kind" in TParseNode.new() - Do we still need it?
+* Review "depth" in TPattern.getMatch() and Matcher() - Do we still need them?
+
+
+
+
