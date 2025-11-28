@@ -18,7 +18,8 @@ Type TPackratParser
 	
 	Private
 	
-	Field document:TTextDocument	
+	'Field document:TTextDocument
+	Field context:TParseContext
 '	Field memo:TMemoisation
 	
 '	Field options:Int = 0
@@ -51,6 +52,18 @@ Type TPackratParser
 '		Return document.errors.Length
 '	End Method
 
+	' Get the current memotable
+	Method getMemotable:TMemoisation()
+		If Not context; Return Null
+		Return context.memotable
+	End Method
+	
+	' Get PEG definition
+	Method getPEG:String()
+		If Not grammar; Return ""
+		return grammar.toPEG()
+	EndMethod
+
 	' Get the grammar name tied to this parser
 	Method name:String()
 		Return grammar.name
@@ -64,43 +77,12 @@ Type TPackratParser
 	
 	' Parse document using grammar into a Parse Tree
 	Method parse:TParseTree( document:TTextDocument, startrule:String="" )
-		Self.document = document
-		
-'		Self.document.setOptions( options )
 DebugStop
-' DO NOT APPEND A "\n" TO THE INPUT STREAM
-' THIS PREVENTS SINGLE-LINE MATCHES FROM WORKING PROPERLY
-' YOU MUST DEAL WITH EOI IN YOUR PEG LOGIC
-'If Not Self.document.content.endswith("~n"); Self.document.content :+ "~n"
-
-		'# Get initial rule and start processing
-'		If Not startrule; startrule = grammar.getStart()
-'		Local start:TPattern = grammar.nonTerminal( startrule )
-'		
-'		' If we don't have a valid starting rule, then abort
-'		If Not start
-'			Throw New TPackratBadStart( startrule )
-'			'Throw New TMissingRule( startrule )
-'			'start = New TError( zeroOrmore( any() ), "Start rule '"+grammar.getStart()+"' is not defined in '"+grammar.name+"'" )
-'			'Local pattern:TPattern = New TZeroOrMore( New TAny() )
-'			'start = New TError( pattern, "Start rule '"+startrule+"' is not defined in '"+grammar.name+"'" )
-'		End If
-'		Print( "Start rule '"+startrule+"' selected." )
-
 		' Create a parsing context using the source and starting rule
-		Local context:TParseContext = New TParseContext( document, grammar, True)
-		If verbose; context.setVerbose()
+		context = New TParseContext( document, grammar, True, verbose )
+		'If verbose; context.setVerbose()
 		'Return New TParseTree( document.match( start, Null, Self ) )
 		Local tree:TParseTree = New TParseTree( document.match( context ) )
-'DebugStop
-' Debug the memotable
-If context.memotable
-	Print()
-	context.memotable.showSelf()
-EndIf
-
-
-
 
 		Return tree
 	End Method
@@ -196,6 +178,15 @@ EndIf
 '		DebugStop
 '	End Method
 
+	' Debug the memotable
+'	Method showMemotable()
+'		Print( "~nMEMOTABLE:" )
+'		If context.memotable
+'			context.memotable.showSelf()
+'		Else
+'			Print "- Does not exist"
+'		EndIf
+'	End Method
 
 	Method setVerbose( state:Int = True )
 		verbose = state

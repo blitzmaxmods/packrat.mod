@@ -16,13 +16,18 @@ Type TTextDocument
 '		setoptions( options )
 	End Method
 
+	' Extract a portion of the document
+	Method extract:String( start:Int, finish:Int )
+		Return Self.content[start..finish]
+	End method
+
 	' Entry point for all Parsing
 	' Simple matching: Called by TPattern.match()
 	' Parsing:         Called by TPackratParser.parse()
 
 	Method match:TMatchResult( context:TParseContext, parent:TParseNode=Null, start:Int=0, depth:Int=0 )
 		Raiseif( context.grammar=Null, "context.grammar is NULL" )
-		
+DebugStop ' DOCUMENT MATCH IS RETURNING NULL
 		' Get starting pattern from grammar
 		'Local pattern:TPattern = context.grammar.getStartRule()
 
@@ -48,7 +53,7 @@ Type TTextDocument
 		Return result
 	End Method
 
-		
+	
 ' DEPRECIATED
 	' Document matcher that uses the memo table to improve parsing speed
 	'Method match:TParseNode( pattern:TPattern, parent:TParseNode, caller:TPackratParser=Null, start:Int=0, depth:Int=0, traceback:String="" )

@@ -1,0 +1,14 @@
+# PEG Example for CSV files
+
+START <- FILE
+
+# This is an example that parses a CSV file
+FILE  <- LINE ( EOL LINE )*
+LINE  <- CELL ( COMMA CELL )*
+CELL  <- (!COMMA !EOL . )* 
+
+EOL   <- WSP* [\x13\x10]
+EOF   <- WSP* !.
+COMMA <- ","
+
+

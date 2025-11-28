@@ -12,6 +12,7 @@
 .vscode/
 .bls-cache/
 testing/
+Examples/peg/
 
 # Exclude files
 *.env

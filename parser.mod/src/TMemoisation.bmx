@@ -27,31 +27,34 @@ Type TMemoisation
 		Self.verbose = verbose
 	End Method
 
-	Public Method add:Int( position:Int, ID:Int, node:TParseNode )
+	Public Method add:Int( position:Int, ID:Int, node:TParseNode, descr:String="" )
 'DebugStop
 		'Assert ID>0, "Cache reference ID=0 cannot be indexed"
 		'DebugStop
-		If verbose
-			If node
-				Print "CACHE.ADD( POS:"+position+", ID:"+ID+" ) => "+node.name+"{"+node.start+".."+node.finish+"}" '+node.value
-			Else
-				Print "CACHE.ADD( POS:"+position+", ID:"+ID+" ) => NULL (Left recursion protection)"
-			EndIf
-		EndIf
+		'If verbose
+			'If node
+			'	Local name:String = node.getMeta("name")
+				'Print "CACHE.ADD( POS:"+position+", ID:"+ID+" ) => "+name+"{"+node.start+".."+node.finish+"}" '+node.value
+			'Else
+				'Print "CACHE.ADD( POS:"+position+", ID:"+ID+" ) => NULL (Left recursion protection)"
+			'EndIf
+		'EndIf
 		Local newrule:Int = False
+		'DebugStop
+		If node And Not descr; descr = node.pattern.describe()
 		' Get Rule from memo
 		Local pos:TIntMap = TIntMap( memotable.valueforKey( position ) )
 		' If this is a new POS record; create it
 		If Not pos
-			If verbose; Print( "  - Creating record for position "+position )
+			'If verbose; Print( "  - Creating record for position "+position )
 			pos = New TIntMap()
 			memotable.insert( position, pos )
 			newrule = True
-		ElseIf verbose
-			Print( "  - Using existing record for position "+position )
+		'ElseIf verbose
+		'	Print( "  - Using existing record for position "+position )
 		EndIf
 		' Set rule
-		pos.insert( ID, New TMemoEntry( node, position ) )
+		pos.insert( ID, New TMemoEntry( node, position, descr ) )
 		Return newrule
 	End Method
 
@@ -60,18 +63,19 @@ Type TMemoisation
 		' Get list of objects cached at this position
 		Local pos:TIntMap = TIntMap( memotable.valueforKey( position ) )
 		If Not pos
-			If verbose; Print "CACHE.GET( POS:"+position+", ID:"+ID+" ) = None (Not found in cache)"
+			'If verbose; Print "CACHE.GET( POS:"+position+", ID:"+ID+" ) = None (Not found in cache)"
 			Return Null
 		EndIf
 		' Get Memo from rule
 		Local result:TMemoEntry = TMemoEntry( pos.valueforkey( id ) )
-		If verbose
-			If result And result.node
-				If verbose; Print "CACHE.GET( POS:"+position+", ID:"+ID+") => "+result.node.name+"{"+result.node.start+".."+result.node.finish+"}" '+result.node.value
-			Else
-				Print "CACHE.GET: POS:"+position+", ID:"+ID+" => NULL (Left recusion protection)"
-			EndIf
-		End If
+		'If verbose
+			'If result And result.node
+			'	Local name:String = result.node.getMeta("name")
+			'	'If verbose; Print "CACHE.GET( POS:"+position+", ID:"+ID+") => "+name+"{"+result.node.start+".."+result.node.finish+"}" '+result.node.value
+			'Else
+			'	Print "CACHE.GET: POS:"+position+", ID:"+ID+" => NULL (Left recusion protection)"
+			'EndIf
+		'End If
 		Return result
 	End Method
 	 
@@ -79,11 +83,40 @@ Type TMemoisation
 		Self.verbose = verbose
 	End Method
 	
+	' Create a multidimensional string array (table) containing memo table
+	Method query:String[][]()
+		Local result:String[][] = []
+		result :+ [[ "POS", "KIND", "PATTERN", "NODE{NAME}", "START", "FINISH", "CAPTURED", "TAGS" ]]
+		result :+ [["~t"]]	' Horizontal line
+		For Local pos:TIntKey = EachIn memotable.keys()
+			Local kind:TIntMap = TIntMap( memotable.valueForKey( pos.value ) )
+			For Local id:TIntKey = EachIn kind.keys()
+				Local entry:TMemoEntry = TMemoEntry( kind.valueforkey( id.value ) )
+				Local record:String[] = New String[8]
+				record[0] = pos.value
+				record[1] = id.value+"/"+TPattern.lookup(ID.value)
+				record[2] = entry.descr
+				If entry.node
+					record[3] = entry.node.getMeta("name")
+					record[4] = entry.node.start
+					record[5] = entry.node.finish
+					record[6] = entry.node.captured
+					record[7] = entry.node.getMeta()
+				Else
+					record[3] = "NULL"
+				EndIf
+				result :+ [record]
+			Next
+		Next
+		Return result
+	End Method
+	
+Rem
 	' Output the memotable for debugging
 	Public Method showSelf()
 		'DebugStop
 		Local data:String[][] 
-		data :+ [[ "POS", "KIND","NODE.NAME", "START", "FINISH", "CAPTURED" ]]
+		data :+ [[ "POS", "KIND","NODE{NAME}", "PATTERN", "START", "FINISH", "CAPTURED", "TAGS" ]]
 		data :+ [[ "~t" ]]
 		For Local pos:TIntKey = EachIn memotable.keys()
 			Local kind:TIntMap = TIntMap( memotable.valueForKey( pos.value ) )
@@ -91,9 +124,11 @@ Type TMemoisation
 				Local result:TMemoEntry = TMemoEntry( kind.valueforkey( id.value ) )
 				Local kindstr:String = id.value+"/"+TPattern.lookup(ID.value)
 				If result.node
-					data :+ [[ String(pos.value), kindstr, result.node.name, String(result.node.start), String(result.node.finish), result.node.captured ]]
+					Local name:String = result.node.getMeta("name")
+					Local tags:String = result.node.getMeta()
+					data :+ [[ String(pos.value), kindstr, name, result.descr, String(result.node.start), String(result.node.finish), result.node.captured, tags ]]
 				Else
-					data :+ [[ String(pos.value), kindstr, "NULL" ]]
+					data :+ [[ String(pos.value), kindstr, "NULL", result.descr ]]
 				EndIf
 			Next
 		Next
@@ -141,16 +176,19 @@ Type TMemoisation
 		
 		End Function
 	End Method
-	
+EndRem
+
 End Type
 
 Type TMemoEntry
 	Field node:TParseNode
 	Field position:Int
+	Field descr:String
 	
-	Protected Method New( node:TParseNode, position:Int )
+	Protected Method New( node:TParseNode, position:Int, descr:String )
 		Self.node = node
 		Self.position = position
+		Self.descr = descr
 	End Method
 	
 EndType

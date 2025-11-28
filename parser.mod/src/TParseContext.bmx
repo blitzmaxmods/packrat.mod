@@ -6,6 +6,10 @@ Type TParseContext
 	Field memotable:TMemoisation	' Parse Cache
 	Field verbose:Int = False
 
+	' Tree debugging
+	Field trace:String[] = New String[10]
+	Field depth:Int = 0
+
 	' Normal grammar matcher
 	Method New( doc:TTextDocument, grammar:TGrammar, usecache:Int=True, verbose:Int=False )
 		Self.doc     = doc
@@ -28,5 +32,33 @@ Type TParseContext
 		verbose = state
 		If memotable; memotable.setVerbose( state )
 	End Method
+	
+	' Pop a leaf from the trace
+	Method pop( message:String="" )
+		Print "< "+ " / ".join( trace[..depth] )+ " :: ~q"+message+"~q"
+		depth :- 1
+		If depth <0; Throw( "CONTEXT STACK FAILURE" )
+	EndMethod
+
+	' Pop a leaf from the trace
+	Method pop( start:Int, finish:Int )
+		Print "< "+ " / ".join( trace[..depth] )+ " :: OK=~q"+doc.extract( start, finish)+"~q"
+		depth :- 1
+		If depth <0; Throw( "CONTEXT STACK FAILURE" )
+	EndMethod
+
+	' Push a leaf to the trace
+	Method push( leaf:String )
+		'DebugStop
+		If depth>=Len(trace); trace=trace[..(Len(trace)+10)]
+		trace[depth] = leaf
+		depth :+1
+		Print "> "+ " / ".join( trace[..depth] )
+	End Method
+	
+	' Push a leaf to the trace
+	'method branch( message:String )
+	'Return " / ".join( trace )+ " :: "+message
+	'End Method
 	
 EndType

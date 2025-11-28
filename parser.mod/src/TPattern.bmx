@@ -2,12 +2,28 @@
 'PATTERN TYPES
 Const PATTERN_NONE:Int = 0
 
+' Initialise encoding tables
+'TPattern.initialise()
+
 Type TPattern
 
 	Const KINDGROWTH:Int      = 25             ' Speed that KINDNAME array will grow
 	Global KINDNAMES:String[] = New String[KINDGROWTH]
 	Global IDCOUNTER:Int      = 0              ' ID Counter
 
+'	Global ENCODETABLE:String[128]
+	
+	' Initialise Encoding table
+'	Function initialise()
+'		For Local ctrl:Int = 0 Until 31
+'			ENCODETABLE[i] = "\x"+Hex(ctrl)[6..]
+'		Next
+'		For Local ch:Int = 32 Until 125
+'			ENCODETABLE[i] = Chr(ch)
+'		Next
+'		ENCODETABLE[127] = "\x"+Hex(127)[6..]
+'	End Function
+	
 	' Helper function used in debugging to turn "KIND" into a named string
 	Function Lookup:String( kind:Int )
 		If kind > Len(KINDNAMES); Return ""
@@ -48,7 +64,7 @@ Type TPattern
 	' Match using this pattern
 	Method GetMatch:TMatchResult( context:TParseContext, parent:TParseNode, start:Int=0, depth:Int=0 )
 
-		If context.verbose; Print( "? "+typeof()+" is NOT using the cache" )
+		'If context.verbose; Print( "? "+typeof()+" is NOT using the cache" )
 		
 		' Perform a match
 		Local match:TMatchResult = Matcher( context, parent, start, depth )	
@@ -56,7 +72,7 @@ Type TPattern
 
 		' Return successful match
 		If match.node
-			If context.verbose; Print( "? Matched '"+typeof()+"' at "+start )
+			'If context.verbose; Print( "? Matched '"+typeof()+"' at "+start )
 			Return match
 		EndIf
 
@@ -64,7 +80,7 @@ Type TPattern
 		
 		' Normal failure (label is NULL) means we simply backtrack
 		If Not match.label
-			If context.verbose; Print( "? "+typeof()+"; No match at "+start+": backtracking..." )		
+			'If context.verbose; Print( "? "+typeof()+"; No match at "+start+": backtracking..." )		
 			Return match
 		EndIf
 		
@@ -72,11 +88,11 @@ Type TPattern
 		Local recovery:TPattern = context.grammar[match.label]
 		Raiseif( Not recovery, "label '"+match.label+"' is not defined in grammar" )
 		
-		If context.verbose; Print( "? No match at "+start+"; preforming error recovery..." )
+		'If context.verbose; Print( "? No match at "+start+"; preforming error recovery..." )
 		Local error:TMatchResult = recovery.Matcher( context, parent, start, depth )
 		Return error		
 	EndMethod
-	
+
 	' Hide a core rule from being displayed in grammar
 	Method hide()
 		hidden = True
@@ -97,6 +113,7 @@ Type TPattern
 			Return "START <- "+toPEG()
 		EndIf
 	End Method
+	
 	' Method to apply label to PEG string; only used by toPEG()
 	Private Method applyPEGLabel:String( text:String )
 		If label; Return text+"^"+label
@@ -149,32 +166,27 @@ Type TPattern
 		Return New TMatchResult( start, Self.label, node )
 	End Method
 
-	' Escape a string
-	Method escape:String( Text:String, printables:Int = False )
-		Local escaped:String	
+	' Escape a string into \xNN or \uNNNN format
+	Method Encode:String( Text:String, space:Int=False )
+		Local escaped:String
 		Local n:Int
 		While n<Text.Length
 			Local ch:Int = Asc(Text[n..n+1])
-			If ch=9 
-				escaped :+ "\t"
-			ElseIf ch=10
-				escaped :+ "\n"
-			ElseIf ch=13
-				escaped :+ "\r"
-			ElseIf ch<32 Or ch=92 Or ( ch>125 And ch<256 )
+			If ch=Asc("\")
 				escaped :+ "\x"+Hex(ch)[6..]
-			ElseIf ch>=32 And ch<=126 And printables
+			ElseIf ch>32 And ch<126
+				escaped :+ Chr(ch)			
+			ElseIf ch<32 Or (ch>125 And ch<256)
 				escaped :+ "\x"+Hex(ch)[6..]
-			ElseIf ch>256	'UNICODE
-	'TODO: Add full support for unicode
-				DebugStop
-				' THIS IS NOT TESTED - Should produce \uNNNN
+			ElseIf ch=32 
+				If space
+					escaped :+ "\x20"
+				Else
+					escaped :+ " "
+				EndIf
+			Else ' UNICODE / UNTESTED
+				DebugLog( "UNICODE ENCODING IS UNTESTED" )
 				escaped :+ "\u"+Hex(ch)[4..]
-				DebugStop		
-			ElseIf ch=34
-				escaped :+ "\q"
-			Else
-				escaped :+ Chr(ch)
 			End If
 			n:+1
 		Wend
@@ -182,44 +194,37 @@ Type TPattern
 	End Method
 
 	' Un-escape a string
-	Method descape:String( Text:String )
-	'TODO: Optimise and support unprintables
-
-		DebugLog "DESCAPE() IS UNTESTED"
+	Method Decode:String( Text:String )
 		DebugStop
-
 		Local descaped:String
 		Local n:Int
 		While n<Text.Length
-			Select Text[n]
-			Case "\"	' ESCAPED
-	DebugStop
+			If Text[n..n+1] = "\" ' ESCAPED ?
 				n:+1
-				Select Text[n..n+1]
-				Case "\";	descaped :+ "\"
-				Case "n";	descaped :+ "~n"
-				Case "r";	descaped :+ "~r"
-				Case "t";	descaped :+ "~t"
-				Case "q";	descaped :+ "~q"
-				Case Chr(34);	descaped :+ "~q"
-				Case "x"
-					descaped :+ Chr( Int( "$"+Text[n..n+2] ) )
-					n:+2
-				Case "u"
-					descaped :+ Chr( Int( "$"+Text[n..n+4] ) )
-					n:+4
-				Default
-					' Invalid encoded character, so ignore
-				End Select
-				n:+1
-			Default
-	DebugStop
+				If Text[n..n+1] = "x"
+					Local st:String =Text[n+1..n+3]
+					descaped :+ Chr( Int( "$"+Text[n+1..n+3] ) )
+					n:+3
+				ElseIf Text[n..n+1] = "u" ' Unicode
+					Local st:String =Text[n+1..n+5]
+					DebugLog( "UNICODE DECODING IS UNTESTED" )
+					descaped :+ Chr( Int( "$"+Text[n+1..n+5] ) )
+					n:+5
+				Else
+					Throw( "Unsupported escape sequence \"+Text[n+1]+"..." )
+				EndIf
+			Else
 				descaped :+ Text[n..n+1]
 				n:+1
-			End Select
+			End If
 		Wend
 		Return descaped
 	End Method
+
+	' Textual representation of this pattern
+	' Used for debugging and verbose output
+	' This should be overridden when extended to give decent information
+	Method describe:String() Abstract
 
 EndType
 
@@ -229,21 +234,22 @@ Type TCachedPattern Extends TPattern
 	'Method GetMatch:TMatchResult( doc:TTextDocument, parent:TParseNode, start:Int=0, depth:Int=0 ) Abstract
 	Method GetMatch:TMatchResult( context:TParseContext, parent:TParseNode, start:Int=0, depth:Int=0 )
 
-		If context.verbose; Print( "? "+typeof()+" is using the cache" )
+		'If context.verbose; Print( "? "+typeof()+"["+describe()+"] is using the cache" )
 		' Perform a cache lookup first
 		If context.memotable
 			' Lookup in memo table
+			'DebugStop
 			Local memo:TMemoEntry = context.memotable.get( start, ID )
 			If memo
-				If context.verbose; Print( "? Retrieved match for "+typeof()+" from cache at "+memo.position )
+				'If context.verbose; Print( "? Retrieved match for "+typeof()+"["+describe()+"] from cache at "+memo.position )
 				Return New TMatchResult( memo.position, Null, memo.node ) 
 			EndIf
 		
 			' Left-Recursion Protection
 			' We create a "NULL" to force left recursion to fail
 			'DebugStop
-			If context.verbose; Print( "? Adding Left-Recursion protection for "+typeof()+" at "+start )
-			context.memotable.add( start, ID, Null )
+			'If context.verbose; Print( "? Adding Left-Recursion protection for "+typeof()+"["+describe()+"] at "+start )
+			context.memotable.add( start, ID, Null, "Left-Recursion" )
 		EndIf
 	
 		' Perform a match
@@ -252,8 +258,9 @@ Type TCachedPattern Extends TPattern
 
 		' Return successful match
 		If match.node
-			If context.verbose; Print( "? Matched '"+typeof()+"' at "+start )
+			If context.verbose; Print( "? Matched '"+typeof()+" at ["+start+".."+match.node.finish+"] = ~q"+encode(context.doc.extract(start,match.node.finish))+"~q" )
 			' Update the memotable cache with a succesful match
+			'DebugStop
 			context.memotable.add( start, ID, match.node )
 			Return match
 		EndIf
@@ -262,7 +269,7 @@ Type TCachedPattern Extends TPattern
 		
 		' Normal failure (label is NULL) means we simply backtrack
 		If Not match.label
-			If context.verbose; Print( "? No match at "+start+"; backtracking..." )		
+			'If context.verbose; Print( "? No match at "+start+"; backtracking..." )		
 			Return match
 		EndIf
 		

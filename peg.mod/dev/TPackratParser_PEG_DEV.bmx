@@ -18,24 +18,29 @@ Type TPackratParser_PEG_DEV Extends TPackratParser
 		Local DQUOTE:TPattern = SYMBOL( $22 )
 		Local SQUOTE:TPattern = SYMBOL( "'" )
 
-		grammar["HTAB"]     = SYMBOL( $09 )                  ' %d09 = Horizontal Tab  \t
-		grammar["LF"]       = SYMBOL( $0A )                  ' %d10 = Line Feed       \n
-		grammar["CR"]       = SYMBOL( $0D )                  ' %d13 = Carriage Return \r
-		grammar["SP"]       = SYMBOL( $20 )                  ' %d32 = Space
-		grammar["DQUOTE"]   = SYMBOL( $22 )                  ' %d34 = Double Quote    "
-		grammar["DOLLAR"]   = SYMBOL( $24 )                  ' %d36 = Dollar sign     $
-		grammar["SQUOTE"]   = SYMBOL( $27 )                  ' %d39 = Single Quote    '
-		grammar["CARET"]    = SYMBOL( $5E )                  ' %d94 = Caret           ^ 
+		grammar["HTAB"]      = SYMBOL( $09 )                  ' %d09 = Horizontal Tab  \t or ~t
+		grammar["LF"]        = SYMBOL( $0A )                  ' %d10 = Line Feed       \n or ~n
+		grammar["CR"]        = SYMBOL( $0D )                  ' %d13 = Carriage Return \r or ~r
+		grammar["SP"]        = SYMBOL( $20 )                  ' %d32 = Space
+		grammar["DQUOTE"]    = SYMBOL( $5C )                  ' %d92 = Backslash       \
+		grammar["DOLLAR"]    = SYMBOL( $24 )                  ' %d36 = Dollar sign     $
+		grammar["SQUOTE"]    = SYMBOL( $27 )                  ' %d39 = Single Quote    '
+		grammar["BACKSLASH"] = SYMBOL( $22 )                  ' %d34 = Double Quote    "
+		grammar["CARET"]     = SYMBOL( $5E )                  ' %d94 = Caret           ^ 
 
 		'DebugStop
-		grammar["ALPHA"]    = RANGE( "A-Za-z" )              ' Case insensitive A-Z
-		grammar["CHAR"]     = RANGE( Chr($34)+"-"+Chr($7F) ) ' 7 BIt ASCII except CTRL
-		grammar["CRLF"]     = CHARSET( Chr($0D)+Chr($0A) )   ' Newline \r\n
-		grammar["DIGIT"]    = RANGE( "0-9" )                 ' Digit 0 to 9
-		grammar["HEXDIGIT"] = RANGE( "0-9A-Fa-f" )           ' Hexadecimal digits
+		grammar["ALPHA"]    = CHARSET( "A-Za-z" )              ' Case insensitive A-Z
+		grammar["ALPHANUMERIC"] = CHARSET( "A-Za-z0-9" )			
+		grammar["VCHAR"]     = CHARSET( $21, $7E ) ' ABNF Visible Characters
+		grammar["CRLF"]     = SYMBOL( Chr($0D)+Chr($0A) )   ' Newline \r\n
+		grammar["DIGIT"]    = CHARSET( "0-9" )                 ' ABNF digit (0 to 9)
+		grammar["HEXDIGIT"] = CHARSET( "0-9A-Fa-f" )           ' Hexadecimal digits
+		grammar["HEXBYTE"]  = SEQUENCE([ __("HEXDIGIT"), __("HEXDIGIT") ])
+		grammar["HEXWORD"]  = SEQUENCE([ __("HEXDIGIT"), __("HEXDIGIT"), __("HEXDIGIT"), __("HEXDIGIT") ])
 		'Self["OCTET"]    = RANGE( Chr($00)+Chr($FF) )       ' Any 8 bit character
 		'Self["VCHAR"]    = RANGE( Chr($21)+Chr($7E) )       ' visible (printing) characters
-		grammar["WSP"]      = CHOICE([ SYMBOL($20), SYMBOL($09) ])  ' Whitespace
+		'grammar["WSP"]      = CHOICE([ SYMBOL($20), SYMBOL($09) ])  ' Whitespace
+		grammar["WSP"] = CHARSET([ $20, $09 ])
 		'
 		' REGULAR EXPRESSION COMPATABILITY
 		' Not implemented - Move this to a library so it can be used by others
@@ -53,22 +58,21 @@ Type TPackratParser_PEG_DEV Extends TPackratParser
 		
 		' EXTENDED CORE DEFINTIONS
 		grammar["NUMBER"]  = ONEORMORE( __("DIGIT") )               	' Number
-		grammar["QSTRING"] = SEQUENCE([ DQUOTE, ZEROORMORE( SEQUENCE([ NOTPRED(DQUOTE), RANGE( Chr($20)+Chr($21)+Chr($23)+"-"+Chr($7E) ) ]) ), DQUOTE ])
-		grammar["STRING"] = SEQUENCE([ SQUOTE, ZEROORMORE( SEQUENCE([ NOTPRED(SQUOTE), RANGE( Chr($20)+"-"+Chr($26)+Chr($28)+"-"+Chr($7E) ) ]) ), SQUOTE ])
+		grammar["QSTRING"] = SEQUENCE([ DQUOTE, ZEROORMORE( SEQUENCE([ NOTPRED(DQUOTE), CHARSET( Chr($20)+Chr($21)+Chr($23)+"-"+Chr($7E) ) ]) ), DQUOTE ])
+		grammar["STRING"] = SEQUENCE([ SQUOTE, ZEROORMORE( SEQUENCE([ NOTPRED(SQUOTE), CHARSET( Chr($20)+"-"+Chr($26)+Chr($28)+"-"+Chr($7E) ) ]) ), SQUOTE ])
 		' EOI <- !.
 		grammar["EOI"]     = ..
 			SEQUENCE([ ..
-				_,..
 				NOTPRED( ANY() )..				' End of Input / End of File
 			])
-		' EOL <- ( _ CR? LF ) 
-		grammar["EOL"] = ..
-			SEQUENCE([ ..
-				_, ..
-				OPTIONAL( __("CR") ), ..
-				__("LF"), ..
-				__("EOI") ..
-			])
+		' EOL <- ( CR? LF ) 
+		'grammar["EOL"] = ..
+		'	SEQUENCE([ ..
+		'		OPTIONAL( __("CR") ), ..
+		'		__("LF") ..
+		'	])
+		'	EOL <- CRLF / LF
+		grammar["EOL"] = CHOICE([ SYMBOL([$0D,$0A]), SYMBOL([$0A]) ])
 
 		'Self["UNTILEOL"] = SEQUENCE( [ ZEROORMORE( SEQUENCE([ NOTPRED( __("EOL") ), ANY() ]) ), __("EOL") ])
 
@@ -79,23 +83,24 @@ Type TPackratParser_PEG_DEV Extends TPackratParser
 		'	pattern.hideCoreRule()
 		'Next
 	
-		' Pre-define PEG rule names
-		'DebugStop
+		' Declare PEG rule names
 		grammar.declare([..
 			"ACTION", "ALPHANUMUNDER", "ANDPREDICATE",..
 			"CHOICE", "COMMENT", ..
-			"EXPRESSION",..
+			"ENCODEDOCTET", "EXPRESSION",..
 			"GROUP",..
-			"LINE",..
 			"NAME",..
 			"NONTERMINAL", "NOTPREDICATE",..
 			"ONEORMORE", "OPTIONAL",..
 			"PEG", "PEXPR",..
-			"RULE", ..
-			"SEQUENCE", ..
-			"TERMINAL", "TOEOL", ..
+			"READTOEOL", "RULE", "RULENAME", ..
+			"SEQUENCE", "SPACING", ..
+			"TERMINAL", ..
 			"ZEROORMORE", "ZEROONEOPT" ])
-			
+
+		' Declare labels
+		grammar.declare([ "noarrow","badrule","badexpression","unexpected" ])
+
 		' Some shortcuts that we can use elsewhere
 		'Local SP:TPattern  = __("SP")			' Whitespace
 		'Local SP0:TPattern = zeroOrMore(WSP)	' Zero or more whitespace
@@ -120,10 +125,11 @@ Type TPackratParser_PEG_DEV Extends TPackratParser
 		' ALPHA                  <- [A-Za-z]
 		'grammar["ALPHA"]         = CHARSET([ "AZ", "az" ])
 		' ALPHANUMUNDER          <- [A-Za-z0-9_]
-		grammar["ALPHANUMUNDER"] = RANGE( "A-Za-z0-9_" )
+		grammar["ALPHANUMUNDER"] = CHARSET( "A-Za-z0-9_" )
 		' ANDPREDICATE           <- "&" EXPRESSION
 		grammar["ANDPREDICATE"]  = SEQUENCE( [ SYMBOL("&"), __("EXPRESSION") ])
 		' CHOICE                 <- EXPRESSION ( "/" EXPRESSION )+
+		grammar["ARROW"]         = SEQUENCE([ SYMBOL("<"), SYMBOL("-") ])
 		grammar["CHOICE"] = ..
 			SEQUENCE([ ..
 				_, ..
@@ -139,21 +145,25 @@ Type TPackratParser_PEG_DEV Extends TPackratParser
 				])
 		' CHAR					 <- "%" ( ( "d" DIGIT+ ) / ("x" HEXDIGIT+ ) / ("b" ["0","1"]+) )
 		grammar["CHAR"]          = ..
-			SEQUENCE([ ..
-				SYMBOL("%"), ..
-				CHOICE([ ..
-					SEQUENCE([ LITERAL("d"),ONEORMORE(__("DIGIT")) ]),..
-					SEQUENCE([ LITERAL("h"),ONEORMORE(__("HEXDIGIT")) ]),..
-					SEQUENCE([ LITERAL("b"),ONEORMORE(CHARSET("01")) ]) ..
-					]).. 
-				])
+			CHOICE([..
+				__("VCHAR"),..
+				__("ENCODEDOCTET")..
+			])
 		' COMMENT           	 <- SP* "//" (!EOL, .)* EOL
-		grammar["COMMENT"]       = SEQUENCE([ _, SYMBOL("#"), __("TOEOL") ])
+		grammar["COMMENT"] = SEQUENCE([ SYMBOL("#"), CAPTURE( __("READTOEOL") ) ])
 		' DQUOTE                 <- &034;
 		'grammar["DQUOTE"]        = CHARSET( Chr(34) )
 		' EOL                    <- SP* "/r"? "/n"
 		'grammar["EOL"]           = SEQUENCE( "EOL", [ _, optional( LITERAL("~r") ), LITERAL( "~n" ) ] )
 		' EXPRESSION             <- NONTERMINAL / QUOTEDSTRING
+		grammar["ENCODEDOCTET"] = ..
+			SEQUENCE([..
+				__("BACKSLASH"), ..
+				CHOICE([ ..
+					SEQUENCE([ SYMBOL("x"), __("HEXBYTE") ]), ..
+					SEQUENCE([ SYMBOL("u"), __("HEXWORD") ]) ..
+				]) ..
+			])
 		grammar["EXPRESSION"]    = ..
 			CHOICE([ ..
 				__("NONTERMINAL"), ..
@@ -162,12 +172,13 @@ Type TPackratParser_PEG_DEV Extends TPackratParser
 		' GROUP                  <- "(" EXPRESSION ")"  
 		grammar["GROUP"]         = SEQUENCE([ LITERAL("("), __("EXPRESSION"), LITERAL(")") ])
 		' LINE                   <- LINECOMMENT | BLOCKCOMMENT | RULE | EOL
-		grammar["LINE"] = ..
-			CHOICE([ ..
-				SEQUENCE([ _,__("EOL")]), ..	' Blank line
-				__("RULE"), ..											
-				__("COMMENT") ..
-				])
+			
+'		grammar["LINE"] = ..
+'			CHOICE([ ..
+'				SEQUENCE([ _,__("EOL")]), ..	' Blank line
+'				__("RULE"), ..											
+'				__("COMMENT")..
+'				])
 '				ERROR( READUNTIL(EOL) ) ..
 		' NONTERMINAL            <- UPPERCASE+
 		' NAME=<expression>
@@ -188,13 +199,25 @@ Type TPackratParser_PEG_DEV Extends TPackratParser
 		' PEG                    <- LINE+
 
 
-		grammar["PEG"] = ZEROORMORE( __("LINE") )
+'		grammar["PEG"] = ZEROORMORE( __("LINE") )
 '		grammar["PEG"] = ..
 '			SEQUENCE([ ..
 '				ZEROORMORE( __("LINE") ), ..
 '				_,..
 '				EOI..
 '			])
+		grammar["PEG"] = ..
+			SEQUENCE([..
+				ZEROORMORE(..
+					SEQUENCE([..
+						NOTPRED( __("EOI") ),..
+						__("SPACING"),..
+						LABEL( "unexpected", CHOICE([ __("COMMENT"), __("RULE") ]) )..
+						])..
+					),..
+				__("EOI")..
+				])
+
 		' PEXPRESSION            <- CHOICE / SEQUENCE / ZEROONEOOPT / ANDNOT / GROUP / {@EOL}
 		grammar["PEXPR"] = ..
 			SEQUENCE([ ..
@@ -212,20 +235,22 @@ Type TPackratParser_PEG_DEV Extends TPackratParser
 
 			' QUOTEDSTRING           <- DQUOTE (!DQUOTE, .)* DQUOTE
 		'grammar["QUOTEDSTRING"]  = SEQUENCE( "QUOTEDSTRING", [ __("DQUOTE"), zeroOrMore( sequence([ NEG(__("DQUOTE")), any() ])), __("DQUOTE") ])
+		' TOEOL                  <- 
+		grammar["READTOEOL"]     = READUNTIL( CHOICE([ __("EOL"), __("EOI") ]), ANY() )
 		' RULE                   <- NONTERMINAL SP+ "<-" SP+ PEXPR EOL
 		'grammar["RULE"]          = sequence([ choice([ __("NONTERMINAL"), error( "Rule name expected!" )]), SP_, literal("<-"), SP_, __("PEXPR"), EOL ])
 
 		' RULE                   <- <NONTERMINAL> _ <"<-"> _ PEXPR EOL
 		grammar["RULE"]  = SEQUENCE([ ..
-			_, ..							' Leading whitespace
-			__("NONTERMINAL"), ..
-			_, ..
-			LITERAL( "<-" ), ..
-			_, ..
-			__("PEXPR"), ..
+			LABEL( "badrule",       __("RULENAME") ), __("SPACING"), ..
+			LABEL( "noarrow",       __("ARROW") ),    __("SPACING"), ..
+			LABEL( "badexpression", __("PEXPR")), ..
 			EOL ..
 			])
-
+		grammar["RULENAME"] = SEQUENCE([..
+			CHARSET([ "\", "_", "A-Z", "a-z" ]),..
+			ZEROORMORE( CHARSET("-_A-Za-z0-9") )..
+			])
 		' SEARCH                 <- "@" EXPRESSION
 		grammar["SEARCH"]        = SEQUENCE([ SYMBOL("@"), __("EXPRESSION") ])
 		' SEQUENCE               <- EXPRESSION EXPRESSION+
@@ -235,9 +260,17 @@ Type TPackratParser_PEG_DEV Extends TPackratParser
 				ONEORMORE( __("EXPRESSION") ) ..
 				])
 		' TERMINAL               <- ALPHA ALPHANUMUNDER*
+		grammar["SPACING"] = ..
+			ZEROORMORE( ..
+				CHOICE([ ..
+					SYMBOL($20),..
+					SYMBOL($09),..
+					SYMBOL([$0D,$0A]),..
+					SYMBOL($0A),..
+					__("EOI")..
+					])..
+				)	
 		grammar["TERMINAL"]      = SEQUENCE([ __("ALPHA"), ZEROORMORE( __("ALPHANUMUNDER") ) ])
-		' TOEOL                  <- 
-		grammar["TOEOL"]         = SEQUENCE([ NOTPRED( __("EOL") ), ANY(), __("EOL") ])
 		' UPPERCASE              <- [A-Z]
 		'grammar["UPPERCASE"]     = RANGE( "AZ" )
 		' ZEROORMORE             <- EXPRESSION "*"
@@ -245,6 +278,21 @@ Type TPackratParser_PEG_DEV Extends TPackratParser
 		' ZEROONEOOPT            <- ZEROORMORE / ONEORMORE / OPTIONAL
 		grammar["ZEROONEOPT"]    = SEQUENCE([ __("EXPRESSION"), __("ONEORMORE"), __("OPTIONAL") ])
 
+		' 23 NOV 2025 - Grammar revision / Not yet implemented
+		
+		'grammar["EOL"] = CHOICE([ SYMBOL("~r~n"), SYMBOL("~n"), NOTPRED( ANY() ) ])
+		'grammar["WORD"] = RANGE("A-Za-Z_")
+		'grammar["IDENTIFIER"] = SEQUENCE([ __("WORD"), ZEROORMORE( __("ALPHANUMERIC") ), __("Spacing") ])
+		'grammar["RULE"] = SEQUENCE([ __("IDENTIFIER"), __("ARROW"), __("EXPRESSION"), __("ACTION"), CHOICE([__("COMMENT"),__("EOL")]) ])
+		'grammar["COMMENT"] = SEQUENCE([ __("HASH"), ZEROORMORE( SEQUENCE([ NOTPRED( CHOICE([__("EOL"),__("EOI")]) ), ANY() ]) ), CHOICE([__("EOL"),__("EOI")]) ])
+
+		'	DEFINE LABELS
+			
+		grammar["noarrow"]       = ERROR( "Expected '<-'",         __("READTOEOL") )
+		grammar["badrule"]       = ERROR( "Rule is invalid",       __("READTOEOL") )
+		grammar["badexpression"] = ERROR( "Expression is invalid", __("READTOEOL") )
+		grammar["unexpected"]    = ERROR( "Unexpected symbol",     __("READTOEOL") )
+				
 		' LABELS
 		'grammar["expected"]      <- 
 

@@ -6,8 +6,8 @@ SuperStrict
 '
 '	The purpose of this example is to show you some macros and how they represent PEG expressions.
 
-'Import packrat.patterns
-Import "../patterns.mod/patterns.bmx"
+'Import packrat.macros
+Import "../macros.mod/macros.bmx"
 
 Local pattern:TPattern
 

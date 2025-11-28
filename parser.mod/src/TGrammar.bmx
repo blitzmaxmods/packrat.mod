@@ -12,7 +12,6 @@ Type TGrammar Extends TDictionary
 		Super.New()
 		Self.name  = name
 		Self.start = start
-	
 	End Method
 
 	' 28 DEC 2024 - Added Helper Function for single patterns
@@ -29,6 +28,13 @@ Type TGrammar Extends TDictionary
 			'If contains(pattern); Print "- Already defined"
 			If contains(pattern); Throw "Pattern '"+pattern+"' already exists and cannot be re-declared"
 			Self[pattern] = "DECLARED"
+		Next
+	End Method
+	
+	' Merge an external grammar into this grammar
+	Method merge( other:TGrammar, overwrite:Int = False )
+		For Local rulename:String = EachIn other.keys()
+			Self[rulename] = TPattern( other[rulename] )
 		Next
 	End Method
 

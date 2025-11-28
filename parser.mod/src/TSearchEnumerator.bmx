@@ -4,27 +4,52 @@ Type TSearchEnumerator
 
 	Field list:TList
 	
-	' Search by name
-	Method New( node:TParseNode, name:String )
+	' Search by metatag
+	Method New( node:TParseNode, tag:String ) ', name:Int=False )
 		list = New TList()
-		walk( node, name )
+		walk( node, tag )
+	End Method
+
+	Method New( node:TParseNode, tag:String, value:String )
+		list = New TList()
+		walk( node, tag, value )
+		'EndIf
 	End Method
 	
 	' Search by kind
-	Method New( node:TParseNode, kind:Int )
-		list = New TList()
-		walk( node, kind )
-	End Method
+'	Method New( node:TParseNode, kind:Int )
+'		list = New TList()
+'		walk( node, kind )
+'	End Method
 
-	Method walk( node:TParseNode, name:String )
-		'DebugStop
-		For Local child:TParseNode = EachIn node.children
-			walk( child, name )
-		Next
+	' Depreciated - Walk by field "name"
+'	Method walkByName( node:TParseNode, name:String )
+'		'DebugStop
+'		For Local child:TParseNode = EachIn node.children
+'			walkByName( child, name )
+'		Next
 'If node.name=""
 'DebugStop	' Do we have an issue here; name should be the rule
 'EndIf
-		If node.name = name; list.addlast( node )
+'		If node.name = name; list.addlast( node )
+'	End Method
+
+	' Walk by tag
+	Method walk( node:TParseNode, tag:String )
+		'DebugStop
+		For Local child:TParseNode = EachIn node.children
+			walk( child, tag )
+		Next
+		If node.hasMeta( tag ); list.addlast( node )
+	End Method
+
+	' Walk by tag value
+	Method walk( node:TParseNode, tag:String, value:String )
+		'DebugStop
+		For Local child:TParseNode = EachIn node.children
+			walk( child, tag, value )
+		Next
+		If node.hasMeta( tag, value ); list.addlast( node )
 	End Method
 		
 '	Method walk( node:TParseNode, kind:Int )

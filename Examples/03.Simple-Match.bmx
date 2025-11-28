@@ -6,8 +6,8 @@ SuperStrict
 '
 '	The purpose of this example is to show you how to perform a simple string match
 
-'Import packrat.patterns
-Import "../patterns.mod/patterns.bmx"
+'Import packrat.macros
+Import "../macros.mod/macros.bmx"
 
 ' Create a pattern
 

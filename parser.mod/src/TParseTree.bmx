@@ -4,10 +4,6 @@
 '
 '	A ParseTree is the result of parsing a source file with a given grammar.
 
-'   CHANGES:
-'   DD MMM YYYY  V1.0  First version
-'
-
 Type TParseTree ' Extends TParseNode
 
 	Field root:TParseNode
@@ -21,6 +17,10 @@ Type TParseTree ' Extends TParseNode
 '	Method New( root:TParseNode = Null )
 '		Self.root = root
 '	End Method
+
+	Method Errors:TSearchEnumerator()
+		If root; Return root.ByMeta( "error" )
+	End Method
 
 '	Method getRoot:TParseNode()
 '		Return root
@@ -45,14 +45,18 @@ Type TParseTree ' Extends TParseNode
 '	Method getTree:String()
 '		If root; Return root.getTree()
 '	End Method
-	
+
 	Method ByName:TSearchEnumerator( name:String )
-		If root; Return root.byname( name )
+		If root; Return root.ByName( name )
 	End Method
 	
 '	Method ByKind:TSearchEnumerator( kind:Int )
 '		If root; Return root.byKind( Kind )
 '	End Method
+
+	Method ByMeta:TSearchEnumerator( tag:String )
+		If root; Return root.ByMeta( tag )
+	End Method
 	
 '	Method hasErrors:Int()
 '		If Not root; Return False
@@ -73,6 +77,17 @@ Type TParseTree ' Extends TParseNode
 '		Return count
 '	End Method
 
+	' Only use this if you need the error count without errors
+	' It is more efficient to get the errors and count them
+	Method hasErrors:Int()
+		If Not root; Return 0
+		Local count:Int = 0
+		For Local error:TParseNode = EachIn ByMeta( "error" )
+			count :+ 1
+		Next
+		Return count		
+	End Method
+
 '	Method getErrors:TParseError[]()
 '		If Not root; Return Null
 '		Local list:TParseError[] = []
@@ -83,7 +98,11 @@ Type TParseTree ' Extends TParseNode
 '	End Method
 
 	' Extract Grammar from a parseTree
-'	Method extractGrammar:TGrammar()
+	
+
+	Method extractGrammar:TGrammar()
+		Throw( "TParseTree.extractGrammar() IS INCOMPLETE - FInd the original Function in PRE-ALPHA" )
+
 '		DebugStop
 '		
 '		'For Local rule:TParseNode = EachIn Self.byName("RULE")
@@ -107,7 +126,31 @@ Type TParseTree ' Extends TParseNode
 '			Throw e
 '		End Try
 '		
-'	EndMethod
+	EndMethod
+	
+	' Query() returns a table as a multidimensional string array
+	Method query:String[][]()
+		If Not root; Return []
+		Local result:String[][] = []
+		result :+ [["START","FINISH","NAME","ERROR","CAPTURED","CHILDREN"]]
+		result :+ [["~t"]]	' Horizontal line
+		For Local node:TParseNode = EachIn root.preOrder()
+			'DebugStop
+			Local record:String[] = New String[6]
+			record[0] = node.start
+			record[1] = node.finish
+			record[2] = node.getmeta("name")
+			record[3] = node.getmeta("error")
+			record[4] = node.captured
+			If node.children
+				record[5] = Len(node.children)
+			Else
+				record[5] = "Null"
+			EndIf
+			result :+ [record]
+		Next
+		Return result
+	End Method
 	
 	' Debug tool - Builds a textual tree
 	Method reveal:String()

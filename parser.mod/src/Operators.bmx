@@ -17,13 +17,14 @@ EXTENDED OPERATORS
 
 End Rem
 
-' Initialise the TRange component
-TRange.initialise()
+' Initialise the operators
+TCharset.initialise()
+'TRange.initialise()
 
 ' ANDPREDICATE == &e 
 ' Matches expression but does not consume
 ' Returns FALSE if expression does not match
-Type TAndPredicate Extends TPattern
+Type TAndPredicate Extends TCachedPattern
 	
 	Field pattern:TPattern	' One pattern required
 	
@@ -31,14 +32,19 @@ Type TAndPredicate Extends TPattern
 		allocate( typeof() )
 		Self.pattern = pattern
 	End Method
-
+	
 	Method Matcher:TMatchResult( context:TParseContext, parent:TParseNode, start:Int=0, depth:Int=0 )
 		Local result:TMatchResult = pattern.getMatch( context, parent, start, depth+1 )
 		Assert result<>Null, "TAndPredicate received NULL match from "+pattern.typeof()
 		If Not result.node; Return FAIL( start )
 		Return SUCCESS( Self, start, start )
 	End Method
-	
+
+	' Textual representation of this pattern
+	Method describe:String()
+		Return "&e"
+	End Method
+		
 	Method toPEG:String()
 		Return applyPEGLabel( "&" + pattern.toPEG() )
 	End Method
@@ -61,11 +67,20 @@ Type TAny Extends TCachedPattern
 	End Method
 
 	Method Matcher:TMatchResult( context:TParseContext, parent:TParseNode, start:Int=0, depth:Int=0 )
+'If start>23
+'	Local CH:String = context.doc.content[start..(start+1)]
+'	DebugStop
+'EndIf
 		' Fail at EOI. This is useful because we can detect EOI using !.
 		If start >= context.doc.content.Length; Return FAIL( start )
 		Return SUCCESS( Self, start, start+1 )
 	End Method
-	
+
+	' Textual representation of this pattern
+	Method describe:String()
+		Return "."
+	End Method
+
 	Method toPEG:String()
 		Return applyPEGLabel( "." )
 	End Method
@@ -76,6 +91,7 @@ Type TAny Extends TCachedPattern
 
 EndType
 
+' CAPTURE: $e
 ' A Capture simply extracts text from the pattern inserting it into a parsenode.
 ' If you dont use this; you need to extract it using getPosition()
 ' TCAPTURE IS NOT CACHED
@@ -96,6 +112,11 @@ Type TCapture Extends TPattern
 		Return result
 	End Method
 
+	' Textual representation of this pattern
+	Method describe:String()
+		Return "$e"
+	End Method
+
 	Method toPEG:String()
 		Return applyPEGLabel( "$"+pattern.toPEG() )
 	End Method
@@ -110,18 +131,93 @@ Type TCapture Extends TPattern
 EndType
 
 ' A Charset scans a set of allowed characters
-Type TCharSet Extends TPattern
+Type TCharSet Extends TCachedPattern
 
-	Field allowed:String	' Allowed characters
+	Global ASCII8:String	' Lookup table
 
+	Function initialise()
+		If ASCII8; Return
+		ASCII8 = " "[..256]
+		For Local n:Int=0 To 255
+			ASCII8[n] = n
+		Next
+	End Function
+
+	Field allowed:String		' Allowed characters
+	Field negated:Int = False	' Is the list negated
+	
 	Method New( charset:String )
 		allocate( typeof() )
-		Self.allowed = charset
+		expand( charset )
 	End Method
 
 	Method New( charset:String[] )
 		allocate( typeof() )
-		Self.allowed = "".join( charset )
+		For Local n:Int = 0 Until Len(charset)
+			expand( charset[n] )
+		Next
+	End Method
+
+	Method New( start:Int, finish:Int )
+		allocate( typeof() )
+		If start<0 Or finish>255 Or start>finish; Return
+		Self.allowed = ASCII8[start..finish]
+	End Method
+	
+	Method New( charset:Int[] )
+		allocate( typeof() )
+		For Local ch:Int = EachIn charset
+			Self.allowed :+ Chr(ch)
+		Next
+	End Method
+
+	' This method performs range expansion
+	' Metacharacters \] and \\
+	' Dash symbol must be first or last, otherwise it is categorised as a range
+	' Caret in first position means to negate the string, otherwise it is an unescaped
+	Method expand:String( range:String )
+		Local p:Int = 0
+		Local Length:Int = Len(range)
+		Local start:Int, finish:Int
+		Repeat
+			Select True
+			Case p=Length 						' End of string
+				Exit
+			Case p=0 And range[p]=$5E 			'^ = Leading Caret means negated
+				negated = True
+				p:+1
+			Case p=0 And range[p]=$2D			'- = Leading hyphen
+				allowed :+ "-"
+				p:+1
+			'Case p=Length-1 And range[p]=$2D	'- = Trailing hyphen
+			'	allowed :+ "-"
+			'	p:+1
+			Case p+2<=Length And range[p+1]=$5C	'\ = Metacharacter
+				If range[p+2]=$5C				'\\ = Encoded backslash
+					allowed:+"\"
+					p:+2
+				ElseIf range[p+2]=$5D			'\] = Encoded "]"
+					allowed:+"]"
+					p:+2
+				Else
+					' We simply ignore the sequence!
+					p:+2
+				EndIf
+			Case p+3<=Length And range[p+1]=$2D	'- = Range definition
+				start  = range[p]
+				finish = range[p+2]+1
+				If start<=finish; allowed :+ ASCII8[ start..finish ]
+				p:+3
+			Default
+				allowed:+range[p..p+1]
+				p:+1
+			End Select
+		Forever
+	End Method
+
+	' Thsi method compresses a list into a range
+	Method compress:String( charset:String )
+		Return charset
 	End Method
 
 	Method Matcher:TMatchResult( context:TParseContext, parent:TParseNode, start:Int=0, depth:Int=0 )
@@ -129,7 +225,7 @@ Type TCharSet Extends TPattern
 		If start>context.doc.content.Length; Return FAIL(start)	' EOI always fails
 		Local ch:Int = context.doc.content[start]
 		For Local c:Int = EachIn allowed
-			If ch=c
+			If (Not negated And ch=c) Or (negated And ch<>c)
 '				ShowMatch( start, start+1, "MATCH:TCharSet("+ch+")" )
 '				Return Success( start, start+1, Null )
 				Return SUCCESS( Self, start, start+1 )
@@ -142,20 +238,26 @@ Type TCharSet Extends TPattern
 '		'DebugStop
 '		Local tid:TTypeId = TTypeId.forobject( Self )
 '		Local name:String = tid.name()
-'		name :+ "["+escape(allowed)+"]"
+'		name :+ "["+encode(allowed)+"]"
 '		'DebugStop
-'		Return TTypeId.forobject( Self ).name()+"["+escape(allowed)+"]"
+'		Return TTypeId.forobject( Self ).name()+"["+encode(allowed)+"]"
 '	End Method
 
+	' Textual representation of this pattern
+	Method describe:String()
+		Return encode(allowed, True)
+		'Return str.Replace( " ", "\x20" )
+	End Method
+
 	Method toPEG:String()
-		Local str:String = escape(allowed)
-		str = str.Replace( " ", "\x20" )
+		Local str:String = encode(allowed, True)
+		'str = str.Replace( " ", "\x20" )
 		'If str.Length = 1; Return str
 		Return applyPEGLabel( "["+str+"]" )
 	End Method
 
 	Method generate:String( tab:String )
-		Local str:String = tab+"CHARSET( ~q"+escape(allowed)+"~q )"
+		Local str:String = tab+"CHARSET( ~q"+encode(allowed)+"~q )"
 		Return str
 	End Method
 
@@ -165,7 +267,7 @@ End Type
 ' Choice is successful when any one of its children is successful, 
 ' fails when ALL children fail.
 ' V1.0
-Type TChoice Extends TPattern
+Type TChoice Extends TCachedPattern
 
 	Field patterns:TPattern[] = []	' Multiple patterns
 
@@ -205,6 +307,11 @@ Type TChoice Extends TPattern
 '		Return TTypeId.forobject( Self ).name()+"["+str[1..]+"]}"
 '	End Method
 
+	' Textual representation of this pattern
+	Method describe:String()
+		Return "CHOICE"
+	End Method
+
 	Method toPEG:String()
 		Local list:String[] = New String[ patterns.Length ]
 		'For Local pattern:TPattern = EachIn patterns
@@ -231,9 +338,41 @@ Type TChoice Extends TPattern
 	
 EndType
 
+' {Error=Message}
+Type TError Extends TPattern
+	
+	Field message:String
+	Field pattern:TPattern
+	
+	Method New( message:String, pattern:TPattern )
+		allocate( typeof() )
+		Self.message = message.Replace("'",Chr(34))
+		Self.pattern = pattern
+	End Method
+
+	' Write expression using parser functions
+	Method generate:String( tab:String )
+		Local str:String = tab + "ERROR( ~q"+message.Replace(Chr(34),"'")+"~q, ..~n"
+		str :+ pattern.generate( tab+"~t" ) + " ..~n"
+		Return str + tab + ")"
+	End Method
+	
+	Method Matcher:TMatchResult( context:TParseContext, parent:TParseNode, start:Int=0, depth:Int=0 )
+		Return pattern.getMatch( context, parent, start, depth+1 )
+	End Method
+
+	Method describe:String()
+		Return "ERROR"
+	End Method
+
+	Method toPEG:String()
+		Return pattern.toPEG() + "  {error='"+message+"'}"
+	End Method	
+EndType
+
 ' GROUP == ( e )
 ' A Group simply returns the status of its "only" child.
-Type TGroup	Extends TPattern
+Type TGroup	Extends TCachedPattern
 
 	Field pattern:TPattern	' One pattern required
 
@@ -251,6 +390,11 @@ Type TGroup	Extends TPattern
 '		doc.set_farthest( result.finish )
 '		ShowMatch( start, result.finish, "MATCH:GROUP, "+AsString() )
 		Return result
+	End Method
+
+	' Textual representation of this pattern
+	Method describe:String()
+		Return "()"
 	End Method
 	
 	Method toPEG:String()
@@ -305,13 +449,18 @@ Type TLiteral Extends TCachedPattern
 '		Return TTypeId.forobject( Self ).name()+"{Case-"+["","in"][ignorecase]+"sensitive}["+pattern+"]"
 '	End Method
 
+	' Textual representation of this pattern
+	Method describe:String()
+		Return ["","i"][ignorecase] + "~q" + encode(pattern) + "~q"
+	End Method
+
 	Method toPEG:String()
-		Return applyPEGLabel( Chr(34) + escape(pattern) + Chr(34) + ["","i"][ignorecase] )
+		Return applyPEGLabel( ["","i"][ignorecase] + "~q" + encode(pattern) + "~q"  )
 	End Method
 
 	Method generate:String( tab:String )
 		Local str:String = tab+"LITERAL( "
-		str :+ "~q"+escape(pattern)+"~q"
+		str :+ "~q"+encode(pattern)+"~q"
 		If ignorecase; str :+ ", True"
 		str :+ " )"
 		Return str
@@ -373,11 +522,12 @@ EndRem
 	Method Matcher:TMatchResult( context:TParseContext, parent:TParseNode, start:Int=0, depth:Int=0 )
 	'Method Matcher:TParseNode( doc:TTextDocument, parent:TParseNode, caller:TPackratParser=Null, start:Int=0, depth:Int=0, traceback:String="" )
 'DebugStop
-		If context.verbose; Print( "? Matching NON-TERMINAL '"+name+"'" )
-		If Not context.grammar
-			If context.verbose; Print( "? No grammar defined. Unable to lookup non-terminal" )
-			Return FAIL( start )
-		EndIf
+		If context.verbose; context.push( name )
+		'If context.verbose; Print( "? Matching NON-TERMINAL '"+name+"'" )
+		If Not context.grammar; Throw( "No Grammar defined, cannot continue" )
+
+
+
 '		doc.expected_token = name
 		If Not pattern; pattern = context.grammar[name]
 		If Not pattern; Throw( "Grammar rule ' "+name+"' is not defined" )
@@ -385,12 +535,18 @@ EndRem
 		Local result:TMatchResult = pattern.getMatch( context, parent, start, depth+1 )
 		Assert result<>Null, "TNonTerminal received NULL match from "+pattern.typeof()
 		'Local result:TParseNode = doc.match( pattern, parent, caller, start, depth+1, traceback )
-		If Not result.node; Return result
-'		DebugStop
+		
+		If Not result.node
+			If context.verbose; context.pop( "FAIL" )
+			Return result
+		EndIf
+
+		'DebugStop
 		' SUCCESS
-'		doc.set_farthest( result.finish )
+		'If context.verbose; Print( "OK:   "+name+" <- "+pattern.toPEG() )
+		If context.verbose; context.pop( start, result.node.finish )
 		' Name the result with the rule that was used to identify it.
-		If Not result.node.name; result.node.name = name
+		If Not result.node.hasMeta("name"); result.node.setMeta( "name", name )
 'DebugStop
 '		ShowMatch( start, result.finish, "MATCH:NONTERMINAL("+name+") = '"+doc.extract(start, result.finish)+"'" )
 		Return result	
@@ -402,6 +558,11 @@ EndRem
 '		If Not pattern; Return "TNonTerminal("+name+")==Null"
 '		Return TTypeId.forobject( pattern ).name()+"{"+name+"}"
 '	End Method
+
+	' Textual representation of this pattern
+	Method describe:String()
+		Return name
+	End Method
 	
 	Method toPEG:String()
 		Return applyPEGLabel( name )
@@ -429,21 +590,33 @@ Type TNotPredicate Extends TCachedPattern
 
 	Method Matcher:TMatchResult( context:TParseContext, parent:TParseNode, start:Int=0, depth:Int=0 )
 'DebugStop
+
+		If context.verbose; context.push( "NOTPRED("+pattern.toPEG()+")" )
+
 	'Method Matcher:TParseNode( doc:TTextDocument, parent:TParseNode, caller:TPackratParser=Null, start:Int=0, depth:Int=0, traceback:String="" )
 		'Local result:TParseNode = doc.match( pattern, parent, caller, start, depth+1, traceback )
 		Local result:TMatchResult = pattern.getMatch( context, parent, start, depth+1 )
 		Assert result<>Null, "TNotPredicate received NULL match from "+pattern.typeof()
 		
 		' We must fail if a match was found...
-		If result.node; Return FAIL( start )	'Fail on Match found
+		If result.node
+			If context.verbose; context.pop( "FAIL" )
+			Return FAIL( start )	'Fail on Match found
+		EndIf
 
 		' Success on Match NOT found (result.node=null)
 		'result = Success( start, start ) 
+		If context.verbose; context.pop( start,start+1 )
 		Return SUCCESS( Self, start, start )
 
 		'doc.set_farthest( start )
 		'ShowMatch( start, result.finish, "MATCH:NOTPRED"+AsString() )
 		'Return result	' FAIL / BACKTRACK
+	End Method
+
+	' Textual representation of this pattern
+	Method describe:String()
+		Return "!e"
 	End Method
 
 	Method toPEG:String()
@@ -474,7 +647,7 @@ Type TOneOrMore Extends TCachedPattern
 
 	Method Matcher:TMatchResult( context:TParseContext, parent:TParseNode, start:Int=0, depth:Int=0 )
 	'Method Matcher:TParseNode( doc:TTextDocument, parent:TParseNode, caller:TPackratParser=Null, start:Int=0, depth:Int=0, traceback:String="" )
-		If context.verbose; Print( "? Matching ONE-OR-MORE at "+start )
+		'If context.verbose; Print( "? Matching ONE-OR-MORE at "+start )
 		Local children:TParseNode[]
 		Local pos:Int = start
 		Repeat
@@ -495,6 +668,11 @@ Type TOneOrMore Extends TCachedPattern
 
 	End Method
 
+	' Textual representation of this pattern
+	Method describe:String()
+		Return "e+"
+	End Method
+
 	Method toPEG:String()
 		Return applyPEGLabel( "(" + pattern.toPEG() + ")+" )
 	End Method
@@ -512,7 +690,7 @@ EndType
 ' OPTIONAL == e?
 ' V1.0
 ' Sometimes referred to as the ZEROORONE rule
-Type TOptional Extends TPattern
+Type TOptional Extends TCachedPattern
 
 	Field pattern:TPattern	' One pattern required
 		
@@ -530,12 +708,19 @@ Type TOptional Extends TPattern
 			'doc.set_farthest( result.finish )
 			'ShowMatch( start, result.finish, "MATCH:OPTIONAL, "+AsString() )
 			'Return New TParseNode( Self, kind, start, result.finish, [result] )
+			If context.verbose; Print "- Optional expression '"+pattern.toPEG()+"' exists"
 			Return SUCCESS( Self, start, result.node.finish, [result.node] )
 		Else
 			'doc.set_farthest( start )
 			'Return New TParseNode( Self, kind, start, start, [] )
+			If context.verbose; Print "- Optional expression '"+pattern.toPEG()+"' does not exist"
 			Return FAIL( start )
 		End If
+	End Method
+
+	' Textual representation of this pattern
+	Method describe:String()
+		Return "e?"
 	End Method
 
 	Method toPEG:String()
@@ -554,56 +739,66 @@ EndType
 ' A Range takes one or more ranges and builds a list of characters
 ' Note: "-" has special meaning; if you need to include it place it
 ' at the start or end otherwise it is treated as a range indicator.
-Type TRange Extends TCharSet
+'Type TRange Extends TCharSet
 
-	Global ascii8:String	' Lookup table
+'	Global ascii8:String	' Lookup table
 	
-	Field init:String		
+'	Field init:String		
 
-	Function initialise()
-		If ascii8; Return
-		ascii8 = " "[..256]
-		For Local n:Int=0 To 255
-			ascii8[n] = n
-		Next
-	End Function
+'	Function initialise()
+'		If ascii8; Return
+'		ascii8 = " "[..256]
+'		For Local n:Int=0 To 255
+'			ascii8[n] = n
+'		Next
+'	End Function
 
-	Method New( range:String )
-		allocate( typeof() )
-		Self.init = range
-		Local p:Int = 0
-		Local Length:Int = Len(range)
-		Local start:Int, finish:Int
-		Repeat
-			Select True
-			Case p=Length
-				Exit
-			Case p=0 And range[p]=45
-				allowed :+ "-"
-				p :+ 1
-			Case p+3<=Length And range[p+1]=45
-				start = range[p]
-				finish = range[p+2]+1
-				If start<=finish; allowed :+ ascii8[ start..finish ]
-				p :+ 3
-			Default
-				allowed :+ range[p..p+1]
-				p :+ 1
-			End Select
-		Forever
-	End Method
-
-	Method toPEG:String()
+'	Method New( range:String )
+'		allocate( typeof() )
+'		Self.init = range
+'		Local p:Int = 0
+'		Local Length:Int = Len(range)
+'		Local start:Int, finish:Int
+'		Repeat
+'			Select True
+'			Case p=Length
+'				Exit
+'			Case p=0 And range[p]=45
+'				allowed :+ "-"
+'				p :+ 1
+'			Case p+3<=Length And range[p+1]=45
+'				start = range[p]
+'				finish = range[p+2]+1
+'				If start<=finish; allowed :+ ascii8[ start..finish ]
+'				p :+ 3
+'			Default
+'				allowed :+ range[p..p+1]
+'				p :+ 1
+'			End Select
+'		Forever
+'	End Method
+	
+	' Create a range using the start and finish ascii values.
+'	Method New( start:Int, finish:Int )
+'		allocate( typeof() )
+'		For Local n:Int = start Until finish
+'			init :+ Chr( n )
+'		Next
+'		allowed = init
+'	End Method
+'
+'	Method toPEG:String()
 'TODO: Compress sequential characters
-		Return applyPEGLabel( "["+init+"]" )
-	End Method
-	
-	Method generate:String( tab:String )
-		Local str:String = tab+"RANGE( ~q"+escape(init)+"~q )"
-		Return str
-	End Method
-		
-End Type
+'TODO: Can we drop this and use the one defined in TChar?
+'		Return applyPEGLabel( "["+init+"]" )
+'	End Method
+'	
+'	Method generate:String( tab:String )
+'		Local str:String = tab+"RANGE( ~q"+encode(init)+"~q )"
+'		Return str
+'	End Method
+'		
+'End Type
 
 ' SEQUENCE == [ e1, e2, e3 ... ]
 ' A Sequence is successfull if all its children are successfull.
@@ -619,12 +814,12 @@ Type TSequence Extends TCachedPattern
 	
 	Method Matcher:TMatchResult( context:TParseContext, parent:TParseNode, start:Int=0, depth:Int=0 )
 	'Method Matcher:TParseNode( doc:TTextDocument, parent:TParseNode, caller:TPackratParser=Null, start:Int=0, depth:Int=0, traceback:String="" )
-		If context.verbose; Print( "? Matching SEQUENCE at "+start )
+		'If context.verbose; Print( "? Matching SEQUENCE at "+start )
 		Local children:TParseNode[]
 		Local pos:Int = start
 		Local count:Int = 1
 		For Local pattern:TPattern = EachIn patterns
-			If context.verbose; Print( "? Matching SEQUENCE "+count+" at "+start )
+			'If context.verbose; Print( "? Matching SEQUENCE "+count+" at "+start )
 			'Local result:TParseNode = doc.match( pattern, parent, caller, pos, depth+1, traceback )
 			Local result:TMatchResult = pattern.getMatch( context, parent, pos, depth+1 )
 			Assert result<>Null, "TSequence received NULL match from "+pattern.typeof()
@@ -641,7 +836,7 @@ Type TSequence Extends TCachedPattern
 			End If
 			count :+1
 		Next
-		If context.verbose; Print( "? SEQUENCE at "+start+ " matched sucecssfully" )
+		'If context.verbose; Print( "? SEQUENCE at "+start+ " matched sucecssfully" )
 		'doc.set_farthest( pos )
 '		ShowMatch( start, pos, "MATCH:SEQUENCE, "+AsString() )
 '		Return New TParseNode( Self, 0, start, pos, children )
@@ -655,6 +850,11 @@ Type TSequence Extends TCachedPattern
 '		Next
 '		Return TTypeId.forobject( Self ).name()+"["+str[1..]+"]"
 '	End Method
+
+	' Textual representation of this pattern
+	Method describe:String()
+		Return "SEQUENCE"
+	End Method
 
 	Method toPEG:String()
 		Local str:String
@@ -707,6 +907,10 @@ Type TSymbol Extends TCachedPattern
 	Method Matcher:TMatchResult( context:TParseContext, parent:TParseNode, start:Int=0, depth:Int=0 )
 	'Method Matcher:TParseNode( doc:TTextDocument, parent:TParseNode, caller:TPackratParser=Null, start:Int=0, depth:Int=0, traceback:String="" )
 'DebugStop
+'If start>23
+'	Local Ch:String = context.doc.content[start..(start+Length)]
+'	DebugStop
+'EndIf
 		If start>context.doc.content.Length; Return FAIL(start)	' EOI always fails
 		'Local ch:String = doc.content[start..(start+Length)]
 		If ( context.doc.content[start..(start+Length)] = pattern )
@@ -723,17 +927,26 @@ Type TSymbol Extends TCachedPattern
 	End Method
 
 '	Method AsString:String()
-'		Return TTypeId.forobject( Self ).name()+"["+escape(pattern)+"]"
+'		Return TTypeId.forobject( Self ).name()+"["+encode(pattern)+"]"
 '	End Method
-	
+
+	' Textual representation of this pattern
+	Method describe:String()
+		' Encode and then Replace DQuote because it messes things up.
+		Local str:String = encode(pattern,True).Replace(Chr(34),"\x34")
+		Return str
+	End Method
+
 	Method toPEG:String()
-		'If Length=1; Return escape( pattern ).
-		Return applyPEGLabel( Chr(34)+escape(pattern)+Chr(34) )
+		' Encode and then Replace DQuote because it messes things up.
+		Local str:String = encode(pattern).Replace(Chr(34),"\x34")
+		Return applyPEGLabel( Chr(34)+str+Chr(34) )
 	End Method
 
 	Method generate:String( tab:String )
-		Local str:String = tab+"SYMBOL( ~q"+escape(pattern)+"~q )"
-		Return str
+		' Encode and then Replace DQuote because it messes things up.
+		Local str:String = encode(pattern).Replace(Chr(34),"\x34")
+		Return tab+"SYMBOL( ~q"+str+"~q )"
 	End Method
 
 EndType
@@ -741,7 +954,7 @@ EndType
 ' ZEROORMORE == e*		(Kleene Operator)
 ' Matches Zero or More patterns
 ' V1.0
-Type TZeroOrMore Extends TPattern
+Type TZeroOrMore Extends TCachedPattern
 
 	Field pattern:TPattern	' One pattern required
 
@@ -791,6 +1004,11 @@ Type TZeroOrMore Extends TPattern
 			End If
 			detector = pos
 		Forever
+	End Method
+
+	' Textual representation of this pattern
+	Method describe:String()
+		Return "e*"
 	End Method
 
 	Method toPEG:String()

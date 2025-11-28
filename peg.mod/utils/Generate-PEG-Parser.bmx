@@ -16,24 +16,20 @@
 '	###########################################################
 '
 SuperStrict
-'	PACKRAT PARSER
-
-'Import packrat.parser
-'Import "../../parser.mod/parser.bmx"
+'	IMPORT PACKRAT MACRO PATTERNS
 
 'Import packrat.patterns
 Import "../../patterns.mod/patterns.bmx"
 
-'	PARSER GENERATOR
+'	IMPORT THE PARSER GENERATOR
 
 'Import packrat.generator
 Import "../../generator.mod/generator.bmx"
 
 '	CREATE INSTANCE OF MANUAL (DEV) PACKRAT PEG PARSER
+'	(We cannot use getParser() here because module imports the one we are creating)
 
 Include "../dev/TPackratParser_PEG_DEV.bmx"
-
-DebugStop
 Local parser:TPackratParser = New TPackratParser_PEG_DEV()
 
 '	GENERATE A PRODUCTION PACKRAT PEG PARSER

@@ -6,8 +6,8 @@ SuperStrict
 '
 '	The purpose of this example is to test each operator
 
-'Import packrat.patterns
-Import "../patterns.mod/patterns.bmx"
+'Import packrat.macros
+Import "../macros.mod/macros.bmx"
 
 Local pattern:TPattern
 

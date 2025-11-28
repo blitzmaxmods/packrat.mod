@@ -1,5 +1,51 @@
 
-*. Fix PEG() so it produces decent results -   DONE
+WHERE AM I
+* 05-PEG-Grammar.bmx
+* Add metadata tags to parsenodes - DONE
+* Add parse errors as tags....
+- Currently the loaded CSV is failing to parse using the production parser
+    - Theer is no error recovery or reporting in the manual or production  parser so
+    - we have no way to know what is wrong.
+- We need to test it with the manual parser first
+- Then  we need to add metatag parsing and metatdata to the manual parser
+    - METADATA( key, value, pattern ). The metatadta is added to the node produced by the 
+    - pattern.
+- Then we need to add some labels and errorrs into manual parser
+- then we need to populate the metatdata within the TErrorOperator
+
+- Combine CHARSET and RANGE
+    - Include leading "^" to reverse the meaning of the character set
+
+- Change getGrammarABNF() to getGrammar( "ABNF" ) and add registerGrammar( "ABNF", factory:TGrammar() )
+  - Packrat.abnf can then add a factory function and register itself.
+  - Packrat.regex can do the same
+  - Packrat.peg can do the same (for its core rules)
+
+PEG SELFTEST
+In packrat.peg/peg.bmx, CreateParserFromPEG(), enable "Print pegparser.grammar.toPeg()"
+* Do the same with the production parser and check output is the same.
+
+BUGS
+Symbols will use the following escape sequences from RFC5234 (ABNF definition)
+    "\x" <value>
+
+   Hence:
+         CR          =  %d13
+         CR          =  %x0D
+
+* Pakrat.Regex uses rule names starting with "\", these are not currently
+  supported by the parser so cannot be used.
+
+FEATURES
+- Add helper BETWEEN( x, y ) allowing a string to be converted to a number and have a range check
+ - Returns True if Between and false otherwise
+- Optimise some of the Operators, we dont need to do character comparisions for them
+- RANGE and CHARSET are similar, chnage them to ONEOF (or something)
+  - Fix the negative range issue [^0-9] meaning not in 0 to 9
+
+
+--------------------------------------------------------------------------------------
+
 *. Fix LINE and BLOCK comments
 
 * Replace escape() and deescape() in parser.bmx

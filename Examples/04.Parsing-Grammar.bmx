@@ -1,13 +1,13 @@
 SuperStrict
-'	03.Grammar.bmx
+'	04.Parsing-Grammar.bmx
 '	(c) Copyright Si Dunford, Dec 2024, All rights reserved
 '
 '	Version 1.0
 '
 '	The purpose of this example is to show you how to construct a grammar that is then used to match a string
 
-'Import packrat.patterns
-Import "../patterns.mod/patterns.bmx"
+'Import packrat.macros
+Import "../macros.mod/macros.bmx"
 'import packrat.parser
 Import "../parser.mod/parser.bmx"
 
@@ -28,8 +28,8 @@ grammar[ "CR" ] = SYMBOL( "~n" )
 grammar[ "CELL" ] = CAPTURE( ..
 	ONEORMORE( ..
 		SEQUENCE([ ..
-			NOTPRED( __( "COMMA" ) ), ..
-			NOTPRED( __( "CR" ) ), ..
+			NOTPRED( NONTERMINAL( "COMMA" ) ), ..
+			NOTPRED( NONTERMINAL( "CR" ) ), ..
 			ANY() ..
 			]) ..
 		) ..
@@ -38,25 +38,30 @@ grammar[ "CELL" ] = CAPTURE( ..
 ' A CSV line is defined as one or more values seperated by commas ending in CR
 
 grammar[ "LINE" ] = SEQUENCE([ ..
-	__("CELL"), ..
+	NONTERMINAL("CELL"), ..
 	ONEORMORE( ..
-		SEQUENCE([ __("COMMA"), __("CELL") ]) ..
+		SEQUENCE([ NONTERMINAL("COMMA"), NONTERMINAL("CELL") ]) ..
 		) ..
 	])
 
 ' A CSV file is defined as one or more lines
 
 grammar[ "FILE" ] = SEQUENCE([ ..
-	__("LINE"), ..
+	NONTERMINAL("LINE"), ..
 	ONEORMORE( ..
-		SEQUENCE([ __("CR"), __("LINE") ]) ..
+		SEQUENCE([ NONTERMINAL("CR"), NONTERMINAL("LINE") ]) ..
 		) ..
 	])
 
 ' Show the grammar as PEG
+' We will also save it for use in other examples...
 
-Print grammar.toPEG()
+Local PEG:String = grammar.toPEG()
+CreateDir( "peg/" )
+SaveString( PEG, "peg/csv.peg" )
+Print PEG
 
+DebugStop
 ' Create an instance of the Packrat parser using our grammar
 
 Local parser:TPackratParser = New TPackratParser( grammar )
